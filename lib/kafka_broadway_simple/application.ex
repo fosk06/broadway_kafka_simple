@@ -13,7 +13,6 @@ defmodule KafkaBroadwaySimple.Application do
     ]
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: KafkaBroadwaySimple.Supervisor]
-    Supervisor.start_link(children, opts)
+    Supervisor.start_link(children, strategy: :one_for_one)
   end
 end
