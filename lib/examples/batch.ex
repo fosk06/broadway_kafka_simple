@@ -7,18 +7,20 @@ defmodule KafkaBroadwaySimple.Example.Batch do
     Broadway.start_link(__MODULE__,
       name: __MODULE__,
       producers: [
-        default: [
+        main: [
           module: {KafkaBroadwaySimple.Producer, [
-            offset: 90,
-            topic: "topic1",
-            partition: 0,
-            worker_name: :first_producer
+              offset: 90,
+              topic: "topic1",
+              partition: 0,
+              worker_name: :first_producer,
+              consumer_group: "group-id-one",
+              brokers: [{"localhost", 9092}]
             ]},
           stages: 1
-        ],
+        ]
       ],
       processors: [
-        default: [stages: 1]
+        main: [stages: 2]
       ],
       batchers: [
         cold_storage: [stages: 1, batch_size: 10],

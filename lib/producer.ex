@@ -10,12 +10,38 @@ defmodule KafkaBroadwaySimple.Producer do
   end
 
   @impl true
-  def init(state) do
-    worker_name = Keyword.get(state, :worker_name, :producer)
-    KafkaEx.create_worker(worker_name)
-    {:producer, state}
+  def init(options) do
+    {initial_state,worker_options} = create_initial_state(options)
+    {ok, pid} = KafkaEx.create_worker(initial_state[:worker_name], worker_options)
+    earliest = get_earliest_offset(initial_state)
+    earliest |> IO.inspect(label: "earliest")
+    {:producer, initial_state}
   end
 
+  defp get_earliest_offset(state) do
+    KafkaEx.earliest_offset(state[:topic], state[:partition], state[:worker_name])
+    |> List.first()
+    |> Map.fetch!(:partition_offsets)
+    |> List.first()
+    |> Map.fetch!(:offset)
+    |> List.first()
+  end
+
+  defp create_initial_state(options) do
+    uris = Keyword.get(options, :brokers, [{"localhost", 9092}])
+    consumer_group = Keyword.get(options, :consumer_group, "group-id")
+    initial_state = [
+      offset: Keyword.get(options, :offset, :latest),
+      topic: Keyword.get(options, :topic, "topic"),
+      partition: Keyword.get(options, :partition, 0),
+      worker_name: Keyword.get(options, :worker_name, :producer),
+    ]
+    worker_options = [
+      uris: Keyword.get(options, :brokers, [{"localhost", 9092}]),
+      consumer_group: Keyword.get(options, :consumer_group, "group-id")
+    ]
+    {initial_state, worker_options}
+  end
   @impl true
   def handle_info(_, state) do
     {:noreply, [], state}
@@ -47,6 +73,7 @@ defmodule KafkaBroadwaySimple.Producer do
     end)
   end
 
+
   def fetch(demand,[offset: offset,topic: topic,partition: partition, worker_name: worker_name]) do
     messages = KafkaEx.stream(topic,partition, offset: offset, auto_commit: false, worker_name: worker_name)
     |> Enum.take(demand)
@@ -54,6 +81,10 @@ defmodule KafkaBroadwaySimple.Producer do
     |> Enum.map(fn msg -> Map.put(msg, :partition, partition) end)
     last_offset = List.last(messages) |> Map.fetch!(:offset)
     {last_offset+1,messages}
+  end
+
+  def fetch(demand,state) do
+    "fetch" |> IO.inspect(label: "fetch")
   end
 
   @impl Acknowledger
