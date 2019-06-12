@@ -11,15 +11,58 @@ defmodule KafkaBroadwaySimple.Producer do
 
   @impl true
   def init(options) do
+    validate_options(options)
     {initial_state,worker_options} = create_initial_state(options)
-    {ok, pid} = KafkaEx.create_worker(initial_state[:worker_name], worker_options)
-    earliest = get_earliest_offset(initial_state)
-    earliest |> IO.inspect(label: "earliest")
+    # {ok, pid} = KafkaEx.create_worker(initial_state[:worker_name], worker_options)
     {:producer, initial_state}
+  end
+
+  defp validate_options(options) do
+    errors = []
+    errors = case Keyword.get(options, :offset, :error) do
+      :latest -> errors
+      :earliest -> errors
+      offset when is_number(offset) and offset>0 -> errors
+      _ -> ["offset must be :latest,:earliest or positive integer" | errors]
+    end
+    errors = case Keyword.get(options, :topic, :error) do
+      topic when is_binary(topic) -> errors
+      _ -> ["topic must be a binary" | errors]
+    end
+    errors = case Keyword.get(options, :partition, :error) do
+      partition when is_integer(partition) and partition>=0 -> errors
+      _ -> ["partition must be an integer" | errors]
+    end
+    errors = case Keyword.get(options, :worker_name, :error) do
+      worker_name when is_atom(worker_name) -> errors
+      _ -> ["worker_name must be an atom" | errors]
+    end
+    errors = case Keyword.get(options, :consumer_group, :error) do
+      consumer_group when is_binary(consumer_group) -> errors
+      _ -> ["consumer_group must be an binary" | errors]
+    end
+    errors = case Keyword.get(options, :brokers, :error) do
+      brokers when is_list(brokers) -> errors
+      _ -> ["brokers must be an list of tuple {hostname, port}" | errors]
+    end
+    case Enum.empty?(errors) do
+      true -> options
+      false -> Process.exit(self(), Enum.join(errors, ","))
+    end
   end
 
   defp get_earliest_offset(state) do
     KafkaEx.earliest_offset(state[:topic], state[:partition], state[:worker_name])
+    |> extract_offset()
+  end
+
+  defp get_latest_offset(state) do
+    KafkaEx.latest_offset(state[:topic], state[:partition], state[:worker_name])
+    |> extract_offset()
+  end
+
+  defp extract_offset(offset_payload) do
+    offset_payload
     |> List.first()
     |> Map.fetch!(:partition_offsets)
     |> List.first()
@@ -28,10 +71,7 @@ defmodule KafkaBroadwaySimple.Producer do
   end
 
   defp create_initial_state(options) do
-    uris = Keyword.get(options, :brokers, [{"localhost", 9092}])
-    consumer_group = Keyword.get(options, :consumer_group, "group-id")
     initial_state = [
-      offset: Keyword.get(options, :offset, :latest),
       topic: Keyword.get(options, :topic, "topic"),
       partition: Keyword.get(options, :partition, 0),
       worker_name: Keyword.get(options, :worker_name, :producer),
@@ -40,6 +80,15 @@ defmodule KafkaBroadwaySimple.Producer do
       uris: Keyword.get(options, :brokers, [{"localhost", 9092}]),
       consumer_group: Keyword.get(options, :consumer_group, "group-id")
     ]
+    KafkaEx.create_worker(initial_state[:worker_name], worker_options)
+
+    offset = case Keyword.get(options, :offset) do
+      :latest -> get_latest_offset(initial_state)
+      :earliest -> get_earliest_offset(initial_state)
+      offset when is_number(offset) -> offset
+      _ -> raise "offet must be :latest, :earliest or a positive integer"
+    end
+    initial_state = Keyword.put(initial_state, :offset, offset)
     {initial_state, worker_options}
   end
   @impl true
