@@ -73,6 +73,7 @@ defmodule KafkaBroadwaySimple.Producer do
     initial_state = Keyword.put(initial_state, :offset, offset)
     {initial_state, worker_options}
   end
+
   @impl true
   def handle_info(_, state) do
     {:noreply, [], state}
@@ -114,7 +115,7 @@ defmodule KafkaBroadwaySimple.Producer do
   end
 
   defp ack_successful_message(worker_name, ack) do
-    ack.offset |> IO.inspect(label: "ack message with offset")
+    # ack.offset |> IO.inspect(label: "ack message with offset")
     KafkaEx.offset_commit(worker_name, ack)
   end
 

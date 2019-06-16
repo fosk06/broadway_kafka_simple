@@ -20,7 +20,7 @@ defmodule KafkaBroadwaySimple.Example.Batch do
         ]
       ],
       processors: [
-        main: [stages: 2]
+        main: [stages: 1]
       ],
       batchers: [
         cold_storage: [stages: 1, batch_size: 10],
@@ -31,7 +31,7 @@ defmodule KafkaBroadwaySimple.Example.Batch do
   @impl true
   def handle_message(_, %Message{data: _data} = message, _) do
     # message.data.offset |> IO.inspect(label: "message offset ")
-    # message.data.key |> IO.inspect(label: "message key ")
+    message.data.key |> IO.inspect(label: "message key ")
     message
     |> Message.put_batcher(:cold_storage)
   end
