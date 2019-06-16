@@ -9,10 +9,9 @@ defmodule KafkaBroadwaySimple.Example.Batch do
       producers: [
         main: [
           module: {KafkaBroadwaySimple.Producer, [
-              offset: 90,
+              offset: 110,
               topic: "topic1",
               partition: 0,
-              worker_name: :first_producer,
               consumer_group: "group-id-one",
               brokers: [{"localhost", 9092}]
             ]},
@@ -31,7 +30,7 @@ defmodule KafkaBroadwaySimple.Example.Batch do
   @impl true
   def handle_message(_, %Message{data: _data} = message, _) do
     # message.data.offset |> IO.inspect(label: "message offset ")
-    message.data.key |> IO.inspect(label: "message key ")
+    message.data.value |> IO.inspect(label: "message value")
     message
     |> Message.put_batcher(:cold_storage)
   end

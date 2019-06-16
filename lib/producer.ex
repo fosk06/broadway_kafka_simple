@@ -33,10 +33,6 @@ defmodule KafkaBroadwaySimple.Producer do
       partition when is_integer(partition) and partition>=0 -> errors
       _ -> ["partition must be an integer" | errors]
     end
-    errors = case Keyword.get(options, :worker_name, :error) do
-      worker_name when is_atom(worker_name) -> errors
-      _ -> ["worker_name must be an atom" | errors]
-    end
     errors = case Keyword.get(options, :consumer_group, :error) do
       consumer_group when is_binary(consumer_group) -> errors
       _ -> ["consumer_group must be an binary" | errors]
@@ -51,21 +47,26 @@ defmodule KafkaBroadwaySimple.Producer do
     end
   end
 
+  defp build_worker_name(options) do
+      topic = Keyword.get(options, :topic, "topic")
+      partition = Keyword.get(options, :partition, 0)
+      consumer_group = Keyword.get(options, :consumer_group, "group-id")
+      "#{consumer_group}_#{topic}_#{partition}" |> String.to_atom()
+  end
+
   defp create_initial_state(options) do
     initial_state = [
       topic: Keyword.get(options, :topic, "topic"),
       partition: Keyword.get(options, :partition, 0),
-      worker_name: Keyword.get(options, :worker_name, :producer),
+      worker_name: build_worker_name(options)
     ]
     worker_options = [
       uris: Keyword.get(options, :brokers, [{"localhost", 9092}]),
       consumer_group: Keyword.get(options, :consumer_group, "group-id")
     ]
-    {:ok, kafka_worker} = KafkaEx.create_worker(initial_state[:worker_name], worker_options)
-    latest_offset = KafkaClient.get_latest_offset(initial_state)
-    latest_offset|> IO.inspect(label: "latest_offset")
+    KafkaEx.create_worker(initial_state[:worker_name], worker_options)
     offset = case Keyword.get(options, :offset) do
-      :latest -> latest_offset
+      :latest -> KafkaClient.get_latest_offset(initial_state)
       :earliest -> KafkaClient.get_earliest_offset(initial_state)
       offset when is_number(offset) -> offset
       _ -> raise "offet must be :latest, :earliest or a positive integer"
