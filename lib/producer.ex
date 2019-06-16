@@ -1,6 +1,7 @@
 defmodule KafkaBroadwaySimple.Producer do
   use GenStage
   alias Broadway.{Message, Acknowledger, Producer}
+  alias KafkaBroadwaySimple.KafkaClient
 
   @behaviour Acknowledger
   @behaviour Producer
@@ -12,8 +13,7 @@ defmodule KafkaBroadwaySimple.Producer do
   @impl true
   def init(options) do
     validate_options(options)
-    {initial_state,worker_options} = create_initial_state(options)
-    # {ok, pid} = KafkaEx.create_worker(initial_state[:worker_name], worker_options)
+    {initial_state,_worker_options} = create_initial_state(options)
     {:producer, initial_state}
   end
 
@@ -51,25 +51,6 @@ defmodule KafkaBroadwaySimple.Producer do
     end
   end
 
-  defp get_earliest_offset(state) do
-    KafkaEx.earliest_offset(state[:topic], state[:partition], state[:worker_name])
-    |> extract_offset()
-  end
-
-  defp get_latest_offset(state) do
-    KafkaEx.latest_offset(state[:topic], state[:partition], state[:worker_name])
-    |> extract_offset()
-  end
-
-  defp extract_offset(offset_payload) do
-    offset_payload
-    |> List.first()
-    |> Map.fetch!(:partition_offsets)
-    |> List.first()
-    |> Map.fetch!(:offset)
-    |> List.first()
-  end
-
   defp create_initial_state(options) do
     initial_state = [
       topic: Keyword.get(options, :topic, "topic"),
@@ -83,8 +64,8 @@ defmodule KafkaBroadwaySimple.Producer do
     KafkaEx.create_worker(initial_state[:worker_name], worker_options)
 
     offset = case Keyword.get(options, :offset) do
-      :latest -> get_latest_offset(initial_state)
-      :earliest -> get_earliest_offset(initial_state)
+      :latest -> KafkaClient.get_latest_offset(initial_state)
+      :earliest -> KafkaClient.get_earliest_offset(initial_state)
       offset when is_number(offset) -> offset
       _ -> raise "offet must be :latest, :earliest or a positive integer"
     end
@@ -98,7 +79,7 @@ defmodule KafkaBroadwaySimple.Producer do
 
   @impl true
   def handle_demand(demand, state) when demand > 0 do
-    {last_offset,messages} = fetch(demand,state)
+    {last_offset,messages} = KafkaClient.fetch(demand,state)
     state = Keyword.put(state, :offset, last_offset)
     worker_name = Keyword.get(state, :worker_name, :producer)
     messages = messages |> produce_brodway_messages(worker_name)
@@ -122,19 +103,6 @@ defmodule KafkaBroadwaySimple.Producer do
     end)
   end
 
-
-  def fetch(demand,[offset: offset,topic: topic,partition: partition, worker_name: worker_name]) do
-    messages = KafkaEx.stream(topic,partition, offset: offset, auto_commit: false, worker_name: worker_name)
-    |> Enum.take(demand)
-    |> Enum.map(fn msg -> Map.put(msg, :topic, topic) end)
-    |> Enum.map(fn msg -> Map.put(msg, :partition, partition) end)
-    last_offset = List.last(messages) |> Map.fetch!(:offset)
-    {last_offset+1,messages}
-  end
-
-  def fetch(demand,state) do
-    "fetch" |> IO.inspect(label: "fetch")
-  end
 
   @impl Acknowledger
   def ack(_ack_ref, successful, _failed) do
