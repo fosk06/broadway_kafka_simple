@@ -19,11 +19,15 @@ defmodule KafkaBroadwaySimple.KafkaClient do
   end
 
   def fetch(demand,[offset: offset,topic: topic,partition: partition, worker_name: worker_name]) do
+    # [offset,topic,partition, worker_name, demand] |> IO.inspect(label: "demand")
+    # messages = KafkaEx.fetch(topic,partition, offset: offset, auto_commit: false, worker_name: worker_name)
     messages = KafkaEx.stream(topic,partition, offset: offset, auto_commit: false, worker_name: worker_name)
     |> Enum.take(demand)
     |> Enum.map(fn msg -> Map.put(msg, :topic, topic) end)
     |> Enum.map(fn msg -> Map.put(msg, :partition, partition) end)
+    # messages |> IO.inspect(label: "messages")
     last_offset = List.last(messages) |> Map.fetch!(:offset)
     {last_offset+1,messages}
+    # {100,[]}
   end
 end

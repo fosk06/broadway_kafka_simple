@@ -61,10 +61,11 @@ defmodule KafkaBroadwaySimple.Producer do
       uris: Keyword.get(options, :brokers, [{"localhost", 9092}]),
       consumer_group: Keyword.get(options, :consumer_group, "group-id")
     ]
-    KafkaEx.create_worker(initial_state[:worker_name], worker_options)
-
+    {:ok, kafka_worker} = KafkaEx.create_worker(initial_state[:worker_name], worker_options)
+    latest_offset = KafkaClient.get_latest_offset(initial_state)
+    latest_offset|> IO.inspect(label: "latest_offset")
     offset = case Keyword.get(options, :offset) do
-      :latest -> KafkaClient.get_latest_offset(initial_state)
+      :latest -> latest_offset
       :earliest -> KafkaClient.get_earliest_offset(initial_state)
       offset when is_number(offset) -> offset
       _ -> raise "offet must be :latest, :earliest or a positive integer"
