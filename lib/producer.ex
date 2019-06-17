@@ -12,6 +12,7 @@ defmodule KafkaBroadwaySimple.Producer do
 
   @impl true
   def init(options) do
+    Process.flag(:trap_exit, true)
     validate_options(options)
     {initial_state,_worker_options} = create_initial_state(options)
     {:producer, initial_state}
@@ -41,9 +42,10 @@ defmodule KafkaBroadwaySimple.Producer do
       brokers when is_list(brokers) -> errors
       _ -> ["brokers must be an list of tuple {hostname, port}" | errors]
     end
+    IO.puts(Enum.join(errors, ","))
     case Enum.empty?(errors) do
       true -> options
-      false -> Process.exit(self(), Enum.join(errors, ","))
+      false -> Process.exit(self(), :shutdown)
     end
   end
 
@@ -75,10 +77,16 @@ defmodule KafkaBroadwaySimple.Producer do
     {initial_state, worker_options}
   end
 
+  def handle_info({:shutdown, _ref, :process, _pid, reason},state) do
+    "reason" |> IO.inspect(label: "reason")
+    {:noreply, [], state}
+  end
+
   @impl true
   def handle_info(_, state) do
     {:noreply, [], state}
   end
+
 
   @impl true
   def handle_demand(demand, state) when demand > 0 do

@@ -9,7 +9,7 @@ defmodule KafkaBroadwaySimple.Example.Batch do
       producers: [
         main: [
           module: {KafkaBroadwaySimple.Producer, [
-              offset: 110,
+              offset: "110",
               topic: "topic1",
               partition: 0,
               consumer_group: "group-id-one",
